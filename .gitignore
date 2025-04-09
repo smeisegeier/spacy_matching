@@ -1,0 +1,9 @@
+#exlude these files
+*.csv
+.local
+.venv
+venv
+.env
+.DS_store
+.pyc
+__pycache__
