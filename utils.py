@@ -109,8 +109,8 @@ def find_Paclitaxel_nab(text: string) -> string:
     Returns:
         string: Same string or string with fixed typo
     """
-    Paclitaxel_pattern = r"nab-Paclitaxel|nabPaclitaxel"
-    text = re.sub(Paclitaxel_pattern, "Paclitaxel_nab", text, flags=re.IGNORECASE)
+    Paclitaxel_pattern = r"nab-Paclitaxel|nabPaclitaxel|\b(nab[\s\-]?Paclitaxel)\b"
+    text = re.sub(Paclitaxel_pattern, "Paclitaxel nab", text, flags=re.IGNORECASE)
     return text
 
 
@@ -148,7 +148,8 @@ def remove_trailing_leading_characters(text: string) -> string:
     """
     remove_trailings = text.rstrip(",").rstrip(";")
     remove_leadings = remove_trailings.lstrip(",").lstrip(";")
-    no_whitepace = remove_leadings.strip()
+    remove_brackets = remove_leadings.replace("(", "").replace(")", "")
+    no_whitepace = remove_brackets.strip()
 
     return no_whitepace
 
@@ -168,9 +169,9 @@ def preprocess_data(col_with_free_text: pd.Series) -> pd.DataFrame:
     find_FU_col = remove_words_col.apply(find_5FU)
     find_gemcitabin_col = find_FU_col.apply(find_gemcitabin)
     find_paclitaxel_col = find_gemcitabin_col.apply(find_Paclitaxel_nab)
-    remove_short_words_col = find_paclitaxel_col.apply(remove_short_words)
+    translate_calciumfolinat = find_paclitaxel_col.apply(calciumfolinat_to_folin)
+    remove_short_words_col = translate_calciumfolinat.apply(remove_short_words)
     preprocessed_col = remove_short_words_col.apply(remove_special_symbols)
-
     df["Preprocessed_text"] = preprocessed_col.apply(remove_trailing_leading_characters)
 
     return df
