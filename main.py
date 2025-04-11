@@ -1,37 +1,72 @@
-import spacy
-from spaczz.matcher import FuzzyMatcher
+"""
+Uses the test dataset provided by Stefan Meisegeier with fake clin data
+Functions are imported from utils and data is read in with pandas
+"""
+import sqlite3
 import pandas as pd
-import Levenshtein
+from utils import preprocess_data, get_matches, select_matches
 
-sub_data = pd.read_csv("C:/Python/Substanzen/Test_Daten.csv", sep = ";", encoding="utf-8")
-ref_tab = pd.read_csv("C:/Python/Substanzen/substanz.csv", sep = ";", encoding="utf-8")
+# get data from here:
+# https://gitlab.opencode.de/robert-koch-institut/zentrum-fuer-krebsregisterdaten/cancerdata-generator/-/tree/main/assets?ref_type=heads
+sqlite_con = sqlite3.connect("C:/Substanzen/fake_clin_data.db")
+free_text_data = pd.read_sql_query(
+    "SELECT distinct Bezeichnung FROM Substanz", sqlite_con
+)
+sqlite_con.close()
 
-nlp = spacy.blank("en")
+col_with_substances = free_text_data["Bezeichnung"]
 
-matcher = FuzzyMatcher(nlp.vocab)
-matcher.add("Substance", [nlp(str(sub)) for sub in ref_tab["Substanz"]])
+URL_LINK = "https://gitlab.opencode.de/robert-koch-institut/zentrum-fuer-krebsregisterdaten/cancerdata-references/-/raw/main/data/v2/Klassifikationen/substanz.csv?ref_type=heads"
+reference_list = pd.read_csv(URL_LINK, sep=";")
+col_with_ref_substances = reference_list["substanz"]
 
-results = []
-for _, row in sub_data.iterrows():
-    text = row["Bezeichnung"]
-    id_num = row["ID"]
 
-    doc = nlp(str(text))
-    matches = matcher(doc)
+def create_service_variable(
+    col_with_free_text: pd.Series,
+    col_with_refs: pd.Series,
+    threshold_parameter: int = 85,
+    pattern_to_split: str = r"[/,;+]|\bund\b|\boder\b",
+) -> pd.DataFrame:
+    """applies all the function defined in the utils.py file
 
-    for match_id, start, end, ratio, pattern in matches:
-        if ratio > 80:
-            results.append({
-                "ID": id_num,
-                "input": text,
-                "match": doc[start:end].text,
-                "matched_to": pattern,
-                "similarity": ratio
-            })
+    Args:
+        col_with_free_text (pd.Series): The column with text which should be scanned for substances
+        col_with_refs (pd.Series): The column with substances that we want to search for in the text
+        threshold_parameter (int, optional): Defines the accuracy, higher value means more accuracy.
+        Defaults to 85.
+        pattern_to_split (str, optional): Defines when more than one match is allowed
+        Defaults to r"[/,;+]|\bund\b|\boder\b".
 
-# Create results DataFrame
-results_df = pd.DataFrame(results)
+    Raises:
+        ValueError: checks whether all IDs from input can be found in the output
+        ValueError: checks whether the number of rows is the same in in- and output
 
-best_matches_df = results_df.loc[results_df.groupby(["input", "match"])["similarity"].idxmax()]
+    Returns:
+        pd.DataFrame: processed df with original input text,
+        matched substances and the corresponding accuracy score
+    """
+    preprocessed_data = preprocess_data(col_with_free_text)
 
-best_matches_df.to_csv("output.csv", sep=";")
+    matches_df = get_matches(
+        preprocessed_data, col_with_refs, threshold_parameter=threshold_parameter
+    )
+
+    selected_matches_df = select_matches(matches_df, pattern_to_split=pattern_to_split)
+
+    if not preprocessed_data["ID"].isin(selected_matches_df["ID"]).all():
+        raise ValueError("Not all IDs from input are in output")
+
+    if len(preprocessed_data) != len(selected_matches_df):
+        raise ValueError("Length of input and output differs")
+
+    out_df = preprocessed_data.merge(selected_matches_df, on="ID", how="left")
+
+    return out_df
+
+
+if __name__ == "__main__":
+    substances_with_service_variable = create_service_variable(
+        col_with_substances, col_with_ref_substances
+    )
+    substances_with_service_variable.to_csv("output.csv", sep=";", index=False)
+    print("output saved as csv")
