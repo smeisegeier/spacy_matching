@@ -1,7 +1,6 @@
 #exlude these files
 *.csv
-.local
-.venv
+.local/
 venv
 .env
 .DS_store
