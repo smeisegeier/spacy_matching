@@ -3,7 +3,7 @@ name = "spacy-matching"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "kaleido==0.2.0",
     "levenshtein>=0.27.1",
