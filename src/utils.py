@@ -1,331 +1,170 @@
 """
-matching relies on fuzzymatcher from spaczz.matcher,
-data wrangling uses pandas
-Levenshtein distance to measure similarity between two words
+Substance matching relies on
+data wrangling using pandas and
+fuzzy string machting with spacy and spaczz
 """
 import re
-import string
+import pandas as pd
 import spacy
 from spaczz.matcher import FuzzyMatcher
-import pandas as pd
-import Levenshtein
+
+# helper functions
+
 
 def prepare_free_text(input_col: pd.Series) -> pd.DataFrame:
-    """prepares data, i.e., correct column names and deals with NA and empty strings
-
-    Args:
-        input_col (PandasSeries): column with free text for substances
-    """
+    """Prepares data by renaming, stripping, and cleaning null or empty entries."""
     input_data = pd.DataFrame(
-        {"ID": range(1, len(input_col) + 1), "Original": input_col}
+        {
+            "ID": range(1, len(input_col) + 1),
+            "Original": input_col.fillna("NA").replace("", "NA"),
+        }
     )
-    input_data["Original"] = input_data["Original"].replace({pd.NA: "NA", "": "NA"})
-
+    input_data["Original"] = input_data["Original"].astype(str).str.strip()
     return input_data
 
 
-def remove_short_words(text: string) -> string:
-    """removes words with less than 3 characters
-
-    Args:
-        s (string): string from free text field
-
-    Returns:
-        string: input string without short words
-    """
-    words = [word for word in text.split() if len(word) >= 3]
-    out = " ".join(words)
-    return out
+def remove_short_words(text: str) -> str:
+    """removes words that are shorter than 3 characters
+    """    
+    return " ".join([word for word in text.split() if len(word) >= 3])
 
 
-def remove_unwanted_words(text: string) -> string:
-    """removes common words that we dont want for string matching
-
-    Args:
-        s string: string from free text field
-
-    Returns:
-        string: input string without unwanted words
-    """
-    unwanted_words_pattern = (
-        r"wöchentlich|weekly|woche|allgemein|entsprechend|beendet|zyklus|version|"
-        r"bis|mg|kg|m2|bezeichnet|entfällt|o.n.a.|o.n.a|i.v.|i.v"
-    )
-    text = re.sub(unwanted_words_pattern, "", text, flags=re.IGNORECASE)
-    return text
-
-
-def find_5FU(text: string) -> string:
-    """5FU is a common abbreviation for Fluorouracil.
-    The functions finds it and replaces it with the full name.
-
-    Args:
-        s (string): input string from free text field
-
-    Returns:
-        string: Same string or string with 5-FU replaced by full name
-    """
-    fluorouracil_pattern = (
+def find_5FU(text: str) -> str:
+    """5FU and all the variants are abbrevations for
+    Flourouracil. The function translate it to the actual substance name
+    and catches common misspellings. In principle, fuzzy matching should be able
+    to deal with misspellings but since this is a very common substance it might make sense
+    to explicitly take care of them
+    """    
+    pattern = (
         r"5 fu|5fu|5-fu|5_fu|Fluoruracil|flourouracil|5-fluoruuracil|"
         r"5-fluoro-uracil|5-fluoruuracil|5-fluoruracil|floururacil|"
         r"5-fluorounacil|flourouraci|5-fluourouracil"
     )
-    text = re.sub(fluorouracil_pattern, "fluorouracil", text, flags=re.IGNORECASE)
-    return text
+    return re.sub(pattern, "fluorouracil", text, flags=re.IGNORECASE)
 
 
-def calciumfolinat_to_folin(text: string) -> string:
-    """Often it is reported <Folinsaure (Calciumfolinat)>
-       to prevent mismatches with calciumfolinat, it is translated
-       to folinsaure
-    Args:
-        s (string): input string from free text field
-    """
-    calcium_pattern = r"\b(Calciumfolinat)\b"
-    text = re.sub(calcium_pattern, "folinsäure", text, flags=re.IGNORECASE)
-    return text
+def calciumfolinat_to_folin(text: str) -> str:
+    """This is again a common substance and depending on the threshold parameter
+    for fuzzy matching it might be overlooked by fuzzy matching. This is why 
+    this function translates it.
+    """    
+    return re.sub(r"\b(Calciumfolinat)\b", "folinsäure", text, flags=re.IGNORECASE)
 
 
-def find_gemcitabin(text: string) -> string:
-    """To fix common typos for Gemcitabin
-
-    Args:
-        s (string): input string from free text field
-
-    Returns:
-        string: Same string or string with fixed typo
-    """
-    gemcitabin_pattern = r"Gemcibatin|Gemcibatine|Gemcibatine Mono|Gemcibatin Mono"
-    text = re.sub(gemcitabin_pattern, "gemcitabin", text, flags=re.IGNORECASE)
-    return text
-
-
-def find_Paclitaxel_nab(text: string) -> string:
-    """To fix Paclitaxel nab is named as nab-Paclitaxel
-
-    Args:
-        s (string): input string from free text field
-
-    Returns:
-        string: Same string or string with fixed typo
-    """
-    Paclitaxel_pattern = r"nab-Paclitaxel|nabPaclitaxel|\b(nab[\s\-]?Paclitaxel)\b"
-    text = re.sub(Paclitaxel_pattern, "Paclitaxel nab", text, flags=re.IGNORECASE)
-    return text
-
-
-def remove_special_symbols(text: string) -> string:
-    """removes common symbols that hinder matching
-
-    Args:
-        s (string): input string from free text field
-
-    Returns:
-        string: Same string without symbols
-    """
-    special_symbols_pattern = (
-    r"[\u24C0-\u24FF"
-    r"\u2100-\u214F"
-    r"\u2200-\u22FF"
-    r"\u2300-\u23FF"
-    r"\u2600-\u26FF"
-    r"\u2700-\u27BF"
-    r"\u2B50\u2B06]"
-    r"|m²"
+def find_gemcitabin(text: str) -> str:
+    """Another common substance that should be found, independend of the
+    threshold parameter of the fuzzy matcher.
+    """    
+    return re.sub(
+        r"Gemcibatin(?:e)?(?: Mono)?", "gemcitabin", text, flags=re.IGNORECASE
     )
 
-    return re.sub(special_symbols_pattern, "", text)
+
+def find_Paclitaxel_nab(text: str) -> str:
+    """Sometimes the algorithm does not find nab-Paclitaxel since
+    it puts "nab" in the fron. Here, we translate it to the correct
+    substance name "Paclitaxel nab"
+    """    
+    return re.sub(
+        r"\bnab[\s\-]?Paclitaxel\b", "Paclitaxel nab", text, flags=re.IGNORECASE
+    )
 
 
-def remove_trailing_leading_characters(text: string) -> string:
-    """removes the , and ; if occur at the beginning or end of string
-
-    Args:
-        text (string): input string from free text field
-
-    Returns:
-        string: Same string without leading and trailing , ;
-    """
-    remove_trailings = text.rstrip(",").rstrip(";")
-    remove_leadings = remove_trailings.lstrip(",").lstrip(";")
-    remove_brackets = remove_leadings.replace("(", "").replace(")", "")
-    no_whitepace = remove_brackets.strip()
-
-    return no_whitepace
+# preprocessing using helper functions
 
 
 def preprocess_data(col_with_free_text: pd.Series) -> pd.DataFrame:
-    """Preprocesses the input text to make finding substances easier
-
-    Args:
-        col_with_free_text (pd.Series): input from free text field
-
-    Returns:
-        pd.DataFrame: dataframe with three columns,
-        ID (row number 1 to n), Original, Preprocessed_text
-    """
+    """Applies functions from above sequentially to input data
+    """    
     df = prepare_free_text(col_with_free_text)
-    remove_words_col = df["Original"].apply(remove_unwanted_words)
-    find_FU_col = remove_words_col.apply(find_5FU)
-    find_gemcitabin_col = find_FU_col.apply(find_gemcitabin)
-    find_paclitaxel_col = find_gemcitabin_col.apply(find_Paclitaxel_nab)
-    translate_calciumfolinat = find_paclitaxel_col.apply(calciumfolinat_to_folin)
-    remove_short_words_col = translate_calciumfolinat.apply(remove_short_words)
-    preprocessed_col = remove_short_words_col.apply(remove_special_symbols)
-    df["Preprocessed_text"] = preprocessed_col.apply(remove_trailing_leading_characters)
-
+    processed = (
+        df["Original"]
+        .apply(find_5FU)
+        .apply(find_gemcitabin)
+        .apply(find_Paclitaxel_nab)
+        .apply(calciumfolinat_to_folin)
+        .apply(remove_short_words)
+        .str.strip()
+    )
+    df["Preprocessed_text"] = processed
     return df
 
 
+# find matches with FuzzyMatcher from spaczz
+
+
 def get_matches(
-    substance_df: pd.DataFrame, ref_substance: pd.Series, threshold_parameter: int = 85
+    preprocessed_data: pd.DataFrame,
+    ref_substance: pd.Series,
+    threshold: float = 0.85,
+    max_per_match_id: int = 2,
+    only_first_match: bool = False,
 ) -> pd.DataFrame:
-    """get all matches found with FuzzyMatcher
-
-    Args:
-        substance_df (pd.DataFrame): dataframe with columns ID, Original,
-        Preprocessed_text, i.e., the output from preprocess_data()
-        ref_substance (pd.Series): substances that we want to find in the input text
-        threshold_parameter (int, optional): How fuzzy can the match be?
-        The higher the more accurate the matches. Defaults to 85.
-
-    Returns:
-        pd.DataFrame: returns all matches found,
-        column match refers to the word in the text that was matched,
-        matched_to is the correct (without typos) word,
-        similarity gives the accuracy between match and matched_to
+    """
+    Extracts substances from the input text.
+    Each row is taken as one input text. In principle,
+    there should be only one substance per row. However, 
+    often there are more than one (e.g., "sub1; sub2 and sub3").
+    The FuzzyMatcher is capable of finding more than one match per row.
+    It stores matches in additional columns. Use "only_first_match" to 
+    remove extra columns and return only the first matched substance per row.
+    The max_per_match_id parameter defines how many matches are returned per word.
+    For instance, a row might include "Interferon alpha" and the algorithm might
+    find "Interferon alpha 2a", "Interferon alpha 2b" and "Peginterferon alpha"
+    as potential matches. If the parameter is set to 2, it would only return 2 matches-
+    the two best matches measured by the similarity score. Please note that the
+    parameter controlls the number of matches per word. For instance, if
+    the input is "sub1; sub2 and sub3" It can return two (if set to two) per ID,
+    meaning the output can include up to 6 potential matches for this input.
+    It is recommanded to use a rather high threshold parameter because substance
+    names are often very similar to each other.
     """
     nlp = spacy.blank("en")
     matcher = FuzzyMatcher(nlp.vocab)
-    matcher.add("Substance", [nlp(str(sub)) for sub in ref_substance])
+
+    for sub in ref_substance.dropna().astype(str):
+        matcher.add(sub, [nlp(sub)])
 
     results = []
-    for _, row in substance_df.iterrows():
-        text = row["Preprocessed_text"]
-        id_num = row["ID"]
 
-        doc = nlp(str(text))
+    for _, row in preprocessed_data.iterrows():
+        text = row["Preprocessed_text"] #uses preprocessed text for FuzzyMatcher
+        original = row["Original"]
+        doc = nlp(text)
         matches = matcher(doc)
 
-        match_found = False
+        matches_filtered = [m for m in matches if m[3] >= threshold * 100]
+        matches_sorted = sorted(matches_filtered, key=lambda x: x[3], reverse=True)
 
-        for _, start, end, ratio, pattern in matches:
-            if ratio > threshold_parameter:
-                results.append(
-                    {
-                        "ID": id_num,
-                        "input": text,
-                        "match": doc[start:end].text,
-                        "matched_to": pattern,
-                        "similarity": ratio,
-                    }
-                )
-                match_found = True
+        result_row = {"Original": original}
+        result_row["Preprocessed"] = text
+        match_id_counts = {}
+        match_idx = 1
 
-        if not match_found:
-            results.append(
-                {
-                    "ID": id_num,
-                    "input": text,
-                    "match": "",
-                    "matched_to": "",
-                    "similarity": "",
-                }
-            )
+        for match_id, start, end, ratio, _ in matches_sorted:
+            count = match_id_counts.get(match_id, 0)
+            if count >= max_per_match_id:
+                continue
 
-    results_df = pd.DataFrame(results).sort_values(by="ID", ascending=True)
+            result_row[f"Hit{match_idx}"] = match_id
+            result_row[f"Mapped_to{match_idx}"] = doc[start:end].text
+            result_row[f"Similarity{match_idx}"] = ratio
 
-    return results_df
+            match_id_counts[match_id] = count + 1
+            match_idx += 1
 
+        results.append(result_row)
 
-def select_best_rows(group: pd.DataFrame) -> pd.DataFrame:
-    """will be applied to the df in select_matches()
-    It defines the hierarchy for found matches:
-    exact match > string detect match > smallest Levenshtein distance
+    out = pd.DataFrame(results)
 
-    Args:
-        group (pd.DataFrame): df to apply
+    if only_first_match:
+        cols_to_keep = ["Original", "Preprocessed", "Hit1", "Mapped_to1", "Similarity1"]
+        available_columns = [col for col in cols_to_keep if col in out.columns]
+        dta_col_selected = out[available_columns]
+        dta_col_selected.columns = [
+            re.sub(r"\d+$", "", col) for col in dta_col_selected.columns
+        ]
+        return dta_col_selected
 
-    Returns:
-        pd.DataFrame: df output
-    """
-    exact = group[group["exact_match"] == 1]
-    if not exact.empty:
-        return exact.iloc[0]
-
-    detected = group[group["detected_match"] == 1]
-    if not detected.empty:
-        return detected.iloc[0]
-
-    return group.loc[group["LV_distance"].idxmin()]
-
-
-def select_matches(
-    matches_found_df: pd.DataFrame,
-    pattern_to_split: string = r"[/,;+]|\bund\b|\boder\b",
-) -> pd.DataFrame:
-    """selects matches and returns a df with one row per ID.
-    Thus, the output can be joined on the input table
-    Please refer to the README for more details about the selection process
-
-    Args:
-        matches_found_df (pd.DataFrame): The output of get_matches()
-        pattern_to_split (string, optional): Defines when more than one match is allowed.
-        Defaults to r"[/,;+]|\bund\b|\boder\b".
-
-    Returns:
-        pd.DataFrame: final output that is ready to be joined on the input data table
-    """
-    df_with_pattern = matches_found_df[
-        ~matches_found_df["input"].str.contains(
-            pattern_to_split, case=False, regex=True, na=False
-        )
-    ].copy()
-
-    df_with_pattern["match_count"] = df_with_pattern.groupby("ID")["ID"].transform(
-        "count"
-    )
-    select_df = df_with_pattern[df_with_pattern["match_count"] > 1].sort_values(
-        by="ID", ascending=True
-    )
-    select_df["exact_match"] = (
-        select_df["input"].astype(str) == select_df["matched_to"].astype(str)
-    ).astype(int)
-
-    select_df["detected_match"] = select_df.apply(
-        lambda row: str(row["input"]).lower() in str(row["matched_to"]).lower(), axis=1
-    ).astype(int)
-
-    select_df["LV_distance"] = select_df.apply(
-        lambda row: Levenshtein.distance(str(row["input"]), str(row["matched_to"])),
-        axis=1,
-    )
-    best_matches = (
-        select_df.groupby("ID")[select_df.columns.tolist()]
-        .apply(select_best_rows, include_groups=True)
-        .reset_index(drop=True)
-    )
-    selected_matches = best_matches[matches_found_df.columns.tolist()].copy()
-
-    subset_df1 = matches_found_df[~matches_found_df["ID"].isin(selected_matches["ID"])]
-
-    results_df = pd.concat([subset_df1, selected_matches], ignore_index=True)
-
-    collapsed_df = (
-        results_df.groupby("ID")
-        .agg(
-            {
-                "input": "first",
-                "match": lambda x: "; ".join(x.dropna().astype(str)),
-                "matched_to": lambda x: "; ".join(
-                    dict.fromkeys(x.dropna().astype(str))
-                ),
-                "similarity": lambda x: "; ".join(
-                    dict.fromkeys(x.dropna().astype(str))
-                ),
-            }
-        )
-        .reset_index()
-    )
-
-    return collapsed_df.sort_values(by="ID", ascending=True)
+    return out
