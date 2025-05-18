@@ -1,3 +1,0 @@
-- interface for data to be processed should be described (eg which columns are needed)
-- display full df instead of head to have full featureset available
-- added uv option for better package handling
