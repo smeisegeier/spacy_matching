@@ -61,9 +61,13 @@ results_multiple_hits = create_substance_service_var(
 The function features some parameters: The threshold parameter defines the accuracy. The lower the more matches but higher
 values lead to more accurate matches. The graph below plots the number of substances extracted from free text fields against the corresponding threshold parameter. There is a tradeoff between the number of matches and their accuracy. A threshold value of 0.85 is set as default as it usually ensures sufficient accuracy.    
 
+![show_num](https://github.com/msauerberg/spacy_matching/blob/master/images/plot_match_count_vs_threshold.png?raw=true)
+
 The option "only_first_match = True" should be used if the user wants to allow only one match per free text field.
 Even if there are several substances in the free text field such as "Leuprorelin; Tamoxifen", the function will return only the first match.
 If the option is set to "False", the function can return multiple hits. For the input "Interferon alpha-2a weekly i.v.", the function might return two substances "Interferon alpha-2a" and "Interferon alpha-2b" (assuming they are both on the reference list). Results based on both options is shown below.
+
+![show_num](https://github.com/msauerberg/spacy_matching/blob/master/images/atomic_vs_multiple.png?raw=true)
 
 ## Credits
 
