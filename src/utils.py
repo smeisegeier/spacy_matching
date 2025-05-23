@@ -147,8 +147,8 @@ def get_matches(
             if count >= max_per_match_id:
                 continue
 
-            result_row[f"Hit{match_idx}"] = match_id
-            result_row[f"Mapped_to{match_idx}"] = doc[start:end].text
+            result_row[f"Hit{match_idx}"] = doc[start:end].text
+            result_row[f"Mapped_to{match_idx}"] = match_id
             result_row[f"Similarity{match_idx}"] = ratio
 
             match_id_counts[match_id] = count + 1

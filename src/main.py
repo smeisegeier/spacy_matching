@@ -9,7 +9,7 @@ from utils import preprocess_data, get_matches
 
 # get data from here:
 # https://gitlab.opencode.de/robert-koch-institut/zentrum-fuer-krebsregisterdaten/cancerdata-generator/-/tree/main/assets?ref_type=heads
-sqlite_con = sqlite3.connect("./data/fake_clin_data.db")
+sqlite_con = sqlite3.connect("./local/fake_clin_data.db")
 free_text_data = pd.read_sql_query(
     "SELECT distinct Bezeichnung FROM Substanz", sqlite_con
 )
