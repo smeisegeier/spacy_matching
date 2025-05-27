@@ -70,5 +70,5 @@ results_multiple_hits = create_substance_service_var(
     only_first_match=False,
 )
 
-results_atomic.to_csv("results_atomic.csv", index=False)
-results_multiple_hits.to_csv("results_multiple_hits.csv", index=False)
+results_atomic.to_csv(".local/results_atomic.csv", index=False)
+results_multiple_hits.to_csv(".local/results_multiple_hits.csv", index=False)
