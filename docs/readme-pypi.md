@@ -26,3 +26,22 @@ df_subst = create_substance_service_var(df_raw)
   - changes are committed to github
   - new local build is generated (buildtools)
   - local build is pushed to pypi using token (twine)
+
+## hints
+
+- token is stored in the file `~/.pypirc` after first usage of twine
+
+- one time setup
+
+```python
+# dont use uv add here since this is only for package setup
+uv pip install twine hatchling build
+```
+
+- on repo change
+
+```python
+# rebuild and upload in one step. pypi is the entry in .pypirc file!
+rm -r dist/ & py -m build && twine upload -r pypi dist/*
+```
+

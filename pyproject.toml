@@ -1,12 +1,12 @@
 [project]
 name = "spacy-matching"
-version = "0.2.0"
+version = "0.2.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["matching", "package", "cancerdata"]
 authors = [
-    { name = "msauerberg", email = "" },
+    { name = "msauerberg", email = "markus.sauerberg@bwfgb.hamburg.de" },
     { name = "smeisegeier", email = "meisegeiers@rki.de" },
 ]
 
@@ -31,18 +31,9 @@ dependencies = [
     "spaczz>=0.6.1",
 ]
 
-
-# dependencies = [
-#     "build>=1.2.2.post1",
-#     "hatchling>=1.27.0",
-#     "pandas>=2.3.0",
-#     "pip>=25.1.1",
-#     "twine>=6.1.0",
-# ]
-
-# [project.urls]
+[project.urls]
 # Homepage = "https://github.com/smeisegeier/cancerdata-pii"
-# Repository = "https://github.com/smeisegeier/cancerdata-pii"
+Repository = "https://github.com/msauerberg/spacy-matching"
 # "Bug Tracker" = "https://github.com/smeisegeier/cancerdata-pii/issues"
 
 [build-system]
